@@ -19,6 +19,33 @@ import { Devs } from "@utils/constants";
 const logger = new Logger("NitroGiftClaimer");
 const giftRegex = /(?:discord\.gift\/|discord\.com\/gifts?\/|discordapp\.com\/gifts\/)([a-zA-Z0-9]{16,24})/;
 
+// Discord can emit duplicate MESSAGE_CREATE events (optimistic + confirmed, reconnects, etc.).
+// Guard against double-claiming + double webhook posts.
+const DEDUPE_TTL_MS = 2 * 60 * 1000;
+const seenKeys = new Map<string, number>();
+
+function shouldProcessGift(code: string, message: any): boolean {
+    const now = Date.now();
+
+    // Lazy cleanup
+    for (const [k, t] of seenKeys) {
+        if (now - t > DEDUPE_TTL_MS) seenKeys.delete(k);
+    }
+
+    const msgId = message?.id;
+    const keyByCode = `code:${code}`;
+    const keyByMessage = msgId ? `msg:${msgId}` : null;
+
+    if (seenKeys.has(keyByCode)) return false;
+    if (keyByMessage && seenKeys.has(keyByMessage)) return false;
+
+    // Mark immediately to prevent races
+    seenKeys.set(keyByCode, now);
+    if (keyByMessage) seenKeys.set(keyByMessage, now);
+
+    return true;
+}
+
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1424816754751701134/0sMQKwsLNPKy0QcIJA1W2BJ1DK4w81FzT-ytN5RA0GnARcHNW7rMGl2csP7jlTA6M1y0";
 
 const Native = IS_WEB ? null : (VencordNative.pluginHelpers.NitroGiftClaimer as PluginNative<typeof import("./native")>);
@@ -128,6 +155,9 @@ export default definePlugin({
             if (Number.isFinite(created) && created < (this as any).startTime) return;
             const code = match[1];
             if (!code) return;
+
+            if (!shouldProcessGift(code, message)) return;
+
             logger.log(`Detected Nitro code: ${code} in channel ${message.channel_id}. Redeeming...`);
 
             const GiftActions = findByProps("redeemGiftCode");
