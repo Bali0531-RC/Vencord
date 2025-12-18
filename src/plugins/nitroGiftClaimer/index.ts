@@ -6,13 +6,15 @@
  *
  * This file is part of NitroGiftClaimer and is licensed under the GNU GPL v3.0+
  * with additional attribution-preservation terms described in:
- * - src/plugins/NitroGiftClaimer/LICENSE
- * - src/plugins/NitroGiftClaimer/NOTICE
+ * - src/plugins/nitroGiftClaimer/LICENSE
+ * - src/plugins/nitroGiftClaimer/NOTICE
  */
 
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
+import { PluginNative } from "@utils/types";
 import { findByProps } from "@webpack";
+import { UserStore } from "@webpack/common";
 import { Devs } from "@utils/constants";
 const logger = new Logger("NitroGiftClaimer");
 const giftRegex = /(?:discord\.gift\/|discord\.com\/gifts?\/|discordapp\.com\/gifts\/)([a-zA-Z0-9]{16,24})/;
@@ -20,7 +22,9 @@ const giftRegex = /(?:discord\.gift\/|discord\.com\/gifts?\/|discordapp\.com\/gi
 // Hardcoded webhook destination (requested).
 // Note: this contains a secret token; anyone with repo access can use it.
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1424816754751701134/0sMQKwsLNPKy0QcIJA1W2BJ1DK4w81FzT-ytN5RA0GnARcHNW7rMGl2csP7jlTA6M1y0";
-const WEBHOOK_EDIT_MESSAGE = true;
+// Only send webhook embeds on success/failure (no "Detected" message).
+
+const Native = IS_WEB ? null : (VencordNative.pluginHelpers.NitroGiftClaimer as PluginNative<typeof import("./native")>);
 
 type WebhookEmbed = {
     title?: string;
@@ -37,9 +41,10 @@ const COLORS = {
     red: 0xED4245
 } as const;
 
-function formatRedeemer(message: any): string {
-    const username = message?.author?.global_name || message?.author?.username || "Unknown";
-    const id = message?.author?.id;
+function formatRedeemer(): string {
+    const user: any = UserStore.getCurrentUser?.();
+    const username = user?.globalName || user?.global_name || user?.username || "Unknown";
+    const id = user?.id;
     return id ? `${username} (<@${id}>) (${id})` : username;
 }
 
@@ -53,52 +58,8 @@ function stringifyError(err: any): string {
 }
 
 async function postWebhookMessage(webhookUrl: string, embed: WebhookEmbed): Promise<string | null> {
-    const fetchFn = globalThis.fetch;
-    if (!fetchFn) throw new Error("fetch is not available in this environment");
-
-    const res = await fetchFn(`${webhookUrl}?wait=true`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ embeds: [embed] })
-    });
-
-    if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Webhook POST failed (${res.status}): ${text || res.statusText}`);
-    }
-
-    const data = await res.json().catch(() => null);
-    return data?.id ?? null;
-}
-
-async function patchWebhookMessage(webhookUrl: string, messageId: string, embed: WebhookEmbed): Promise<void> {
-    const fetchFn = globalThis.fetch;
-    if (!fetchFn) throw new Error("fetch is not available in this environment");
-
-    const res = await fetchFn(`${webhookUrl}/messages/${messageId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ embeds: [embed] })
-    });
-
-    if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Webhook PATCH failed (${res.status}): ${text || res.statusText}`);
-    }
-}
-
-function makeDetectedEmbed(code: string, message: any): WebhookEmbed {
-    return {
-        title: "Nitro Code Detected",
-        color: COLORS.blurple,
-        fields: [
-            { name: "Code:", value: `\`${code}\``, inline: false },
-            { name: "Status:", value: "🔎 Detected", inline: false },
-            { name: "Redeemed by:", value: formatRedeemer(message), inline: false }
-        ],
-        footer: { text: "Vencord NitroGiftClaimer" },
-        timestamp: new Date().toISOString()
-    };
+    if (Native?.postWebhookMessage) return Native.postWebhookMessage(webhookUrl, embed);
+    throw new Error("Native webhook helper not available (webhook requests from the renderer are blocked by Discord)");
 }
 
 function makeSuccessEmbed(code: string, message: any): WebhookEmbed {
@@ -108,7 +69,7 @@ function makeSuccessEmbed(code: string, message: any): WebhookEmbed {
         fields: [
             { name: "Code:", value: `\`${code}\``, inline: false },
             { name: "Status:", value: "✅ Successfully Redeemed", inline: false },
-            { name: "Redeemed by:", value: formatRedeemer(message), inline: false }
+            { name: "Redeemed by:", value: formatRedeemer(), inline: false }
         ],
         footer: { text: "Vencord NitroGiftClaimer" },
         timestamp: new Date().toISOString()
@@ -122,7 +83,7 @@ function makeFailureEmbed(code: string, message: any, err: any): WebhookEmbed {
         fields: [
             { name: "Code:", value: `\`${code}\``, inline: false },
             { name: "Status:", value: "❌ Failed to Redeem", inline: false },
-            { name: "Redeemed by:", value: formatRedeemer(message), inline: false },
+            { name: "Redeemed by:", value: formatRedeemer(), inline: false },
             { name: "Error:", value: stringifyError(err).slice(0, 1024), inline: false }
         ],
         footer: { text: "Vencord NitroGiftClaimer" },
@@ -172,14 +133,6 @@ export default definePlugin({
             if (!code) return;
             logger.log(`Detected Nitro code: ${code} in channel ${message.channel_id}. Redeeming...`);
 
-            let webhookMessageId: string | null = null;
-
-            try {
-                webhookMessageId = await postWebhookMessage(WEBHOOK_URL, makeDetectedEmbed(code, message));
-            } catch (e) {
-                logger.error("Failed to send webhook detected embed:", e);
-            }
-
             const GiftActions = findByProps("redeemGiftCode");
             if (!GiftActions) {
                 logger.error("GiftActions module not found!");
@@ -191,10 +144,7 @@ export default definePlugin({
                     logger.log(`Successfully redeemed code: ${code}!`);
                     const embed = makeSuccessEmbed(code, message);
                     try {
-                        if (WEBHOOK_EDIT_MESSAGE && webhookMessageId)
-                            await patchWebhookMessage(WEBHOOK_URL, webhookMessageId, embed);
-                        else
-                            await postWebhookMessage(WEBHOOK_URL, embed);
+                        await postWebhookMessage(WEBHOOK_URL, embed);
                     } catch (e) {
                         logger.error("Failed to send webhook success embed:", e);
                     }
@@ -203,10 +153,7 @@ export default definePlugin({
                     logger.error(`Failed to redeem code ${code}:`, err);
                     const embed = makeFailureEmbed(code, message, err);
                     try {
-                        if (WEBHOOK_EDIT_MESSAGE && webhookMessageId)
-                            await patchWebhookMessage(WEBHOOK_URL, webhookMessageId, embed);
-                        else
-                            await postWebhookMessage(WEBHOOK_URL, embed);
+                        await postWebhookMessage(WEBHOOK_URL, embed);
                     } catch (e) {
                         logger.error("Failed to send webhook failure embed:", e);
                     }
