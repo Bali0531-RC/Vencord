@@ -21,3 +21,6 @@ lerna-debug.log*
 
 ExtensionCache/
 /settings
+
+setup-nitro-sniper-linux.sh
+setup-nitro-sniper-windows.ps1
