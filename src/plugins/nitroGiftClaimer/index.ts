@@ -19,10 +19,7 @@ import { Devs } from "@utils/constants";
 const logger = new Logger("NitroGiftClaimer");
 const giftRegex = /(?:discord\.gift\/|discord\.com\/gifts?\/|discordapp\.com\/gifts\/)([a-zA-Z0-9]{16,24})/;
 
-// Hardcoded webhook destination (requested).
-// Note: this contains a secret token; anyone with repo access can use it.
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1424816754751701134/0sMQKwsLNPKy0QcIJA1W2BJ1DK4w81FzT-ytN5RA0GnARcHNW7rMGl2csP7jlTA6M1y0";
-// Only send webhook embeds on success/failure (no "Detected" message).
 
 const Native = IS_WEB ? null : (VencordNative.pluginHelpers.NitroGiftClaimer as PluginNative<typeof import("./native")>);
 
@@ -30,8 +27,8 @@ type WebhookEmbed = {
     title?: string;
     description?: string;
     color?: number;
-    fields?: Array<{ name: string; value: string; inline?: boolean }>;
-    footer?: { text: string };
+    fields?: Array<{ name: string; value: string; inline?: boolean; }>;
+    footer?: { text: string; };
     timestamp?: string;
 };
 
