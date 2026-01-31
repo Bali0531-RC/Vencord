@@ -625,6 +625,10 @@ export const Devs = /* #__PURE__*/ Object.freeze({
         name: "u32",
         id: 1063237286818488351n,
     },
+    prism: {
+        name: "prism",
+        id: 390884143749136386n,
+    },
     bali0531: {
         name: "Bali0531",
         id: 1141211789552537691n
