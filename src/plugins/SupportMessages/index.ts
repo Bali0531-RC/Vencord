@@ -15,7 +15,7 @@ const MessageActions = findByPropsLazy("deleteMessage", "startEditMessage");
 export default definePlugin({
     name: "SupportMessages",
     description: "Quick support message commands (.psms, .loop, .transcript)",
-    authors: [Devs.Vendicated],
+    authors: [Devs.bali0531],
 
     flux: {
         async MESSAGE_CREATE({ message, optimistic }: { message: any; optimistic: boolean; }) {
