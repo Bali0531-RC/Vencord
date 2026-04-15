@@ -14,7 +14,7 @@ const MessageActions = findByPropsLazy("deleteMessage", "startEditMessage");
 
 export default definePlugin({
     name: "SupportMessages",
-    description: "Quick support message commands (.psms, .loop, .transcript)",
+    description: "Quick support message commands (.psms, .loop, .transcript, .mongowhitelist, .categories)",
     authors: [Devs.bali0531],
 
     flux: {
@@ -32,51 +32,86 @@ export default definePlugin({
             let response: string | null = null;
 
             if (content === ".psms") {
-                response = `## 📦 Parse Duration Fix
+                response = `## Parse Duration Fix
 
-1. Open your \`package.json\` file
-2. Find \`"parse-duration"\` and change the version to \`"1.1.2"\`
-3. Delete the following:
-   - \`node_modules\` folder
-   - \`package-lock.json\` file
-4. Run \`npm install\` again`;
+The \`parse-duration\` package needs to be pinned to version **1.1.2** to avoid compatibility issues.
+
+**Steps:**
+1. Open your \`package.json\` file.
+2. Locate \`"parse-duration"\` and change its version to \`"1.1.2"\`.
+3. Delete the \`node_modules\` folder and the \`package-lock.json\` file.
+4. Run \`npm install\` to reinstall dependencies.`;
             }
             else if (content === ".loop") {
-                response = `## ⚙️ Loop/Secure Configuration
+                response = `## Loop / Secure Configuration
 
-Please make sure to **disable Secure** in the config.
+Make sure **Secure** is set to **false** in your config file.
 
-> **Note:** In case of PlexTickets, also make sure to have at least one role assigned to you that's set up as a **support role** for any of the ticket categories.`;
+If you are using **PlexTickets**, you must also have at least one role assigned to you that is configured as a **support role** for one of the ticket categories. Without this, the bot will not recognise you as a staff member.`;
             }
             else if (content === ".transcript") {
-                response = `## 🐛 Transcript Error Fix
+                response = `## Transcript Generation Error
 
-This error is caused by the \`discord-html-transcripts\` npm package that was recently updated to version **3.3.0** and introduced a bug that breaks transcript generation.
+The \`discord-html-transcripts\` package version **3.3.0** introduced a breaking change. You need to downgrade to version **3.2.0**.
 
-You'll need to **downgrade to version 3.2.0** to fix this issue.
+### Pterodactyl Panel / Shared Hosting / Web Panel
+1. Open \`package.json\` in your file manager.
+2. Find: \`"discord-html-transcripts": "^3.3.0"\`
+3. Replace with: \`"discord-html-transcripts": "3.2.0"\` — make sure to remove the \`^\` prefix.
+4. Save the file.
+5. Delete \`node_modules\`, \`package-lock.json\`, and \`.npm\` (if present).
+6. Restart the bot — dependencies will reinstall automatically.
 
----
-
-### 📁 If using Pterodactyl Panel / Shared Hosting / Web Panel:
-
-1. Open your \`package.json\` file in the file manager
-2. Find the line: \`"discord-html-transcripts": "^3.3.0"\`
-3. Replace it with: \`"discord-html-transcripts": "3.2.0"\`
-   - ⚠️ Make sure to **remove the \`^\` symbol**
-4. Save the file
-5. Delete the following:
-   - \`node_modules\` folder
-   - \`package-lock.json\` file
-   - \`.npm\` folder (if it exists)
-6. Restart your bot - it should automatically reinstall the correct version
-
----
-
-### 💻 If using VPS / Dedicated Server / Command Line:
-
-1. Stop your bot
+### VPS / Dedicated Server / Command Line
+1. Stop your bot.
 2. Run: \`npm install discord-html-transcripts@3.2.0\`
-3. Start your bot again`;
+3. Start your bot.`;
+            }
+            else if (content === ".mongowhitelist") {
+                response = `## MongoDB Atlas — IP Whitelist
+
+Your bot cannot connect to MongoDB because your current IP address is not whitelisted. The easiest solution is to allow access from **all IPs**.
+
+**Steps:**
+1. Go to [MongoDB Atlas](https://cloud.mongodb.com/) and open your project.
+2. Navigate to **Network Access** (under *Security* in the sidebar).
+3. Click **Add IP Address**.
+4. Enter \`0.0.0.0/0\` to allow connections from any IP.
+5. Confirm and wait for the changes to take effect.
+
+**Video walkthrough:** https://repo.arch-linux.fun/vv9rubxc.webm`;
+            }
+            else if (content === ".categories") {
+                response = `## Categories & Panels
+
+Both are configured in your \`config.yml\` file.
+
+**Categories** (\`TicketCategories\`) define the types of tickets users can open. Each category has its own settings like support roles, the Discord parent category ID where tickets are created, embed messages, button colors, and optional questions.
+
+Example:
+\`\`\`yaml
+TicketCategories:
+  TicketCategory1:
+    CategoryName: "General Support"
+    ParentCategoryID: "731044694590750821"
+    SupportRoles: ["731044651078910012"]
+\`\`\`
+
+**Panels** (\`TicketPanels\`) are the embed messages with buttons that users click to open a ticket. Each panel references one or more categories by their **config ID** (e.g. \`TicketCategory1\`), **not** by the Discord category ID.
+
+Example:
+\`\`\`yaml
+TicketPanels:
+  Panel1:
+    Name: "Support Panel"
+    Categories: ["TicketCategory1", "TicketCategory3"]
+\`\`\`
+
+After configuring, use the \`/panel\` command with the panel ID to send it to a channel.
+
+**Common mistake:** Using a Discord category ID (e.g. \`"731044694590750821"\`) in the panel's \`Categories\` list instead of the config category name (e.g. \`"TicketCategory1"\`). The \`Categories\` field must reference the names you defined under \`TicketCategories\` in your config, not Discord IDs.
+
+Full documentation: https://docs.plexdevelopment.net/plex-tickets/categories-and-panels`;
             }
 
             if (response) {
