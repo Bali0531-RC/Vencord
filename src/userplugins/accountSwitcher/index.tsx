@@ -9,22 +9,15 @@ import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
-import {
-    ModalCloseButton,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    ModalProps,
-    ModalRoot,
-    ModalSize,
-    openModal,
-} from "@utils/modal";
+import { openModal } from "@utils/modal";
+import { RenderModalProps } from "@vencord/discord-types";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import {
     Button,
     FluxDispatcher,
     GuildStore,
+    Modal,
     NavigationRouter,
     React,
     showToast,
@@ -383,7 +376,7 @@ function AltAccountServerList() {
 
 // ─── Account Management Modal ────────────────────────────────────────────────
 
-function AccountManagerModal({ modalProps }: { modalProps: ModalProps; }) {
+function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [accounts, setAccounts] = React.useState<StoredAccount[]>([]);
     const [newToken, setNewToken] = React.useState("");
     const [loading, setLoading] = React.useState(false);
@@ -438,13 +431,13 @@ function AccountManagerModal({ modalProps }: { modalProps: ModalProps; }) {
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader>
-                <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>Account Switcher</Text>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
-            <ModalContent>
-                <div style={{ padding: "16px 0" }}>
+        <Modal
+            {...modalProps}
+            size="md"
+            title="Account Switcher"
+            actions={[{ text: "Close", variant: "secondary", onClick: modalProps.onClose }]}
+        >
+            <div style={{ padding: "16px 0" }}>
                     {accounts.length === 0 && (
                         <Text variant="text-md/normal" style={{ color: "var(--text-muted)", marginBottom: 16 }}>
                             No accounts saved. Save your current account or add one by token.
@@ -500,12 +493,8 @@ function AccountManagerModal({ modalProps }: { modalProps: ModalProps; }) {
                             {loading ? "..." : "Add"}
                         </Button>
                     </div>
-                </div>
-            </ModalContent>
-            <ModalFooter>
-                <Button onClick={modalProps.onClose}>Close</Button>
-            </ModalFooter>
-        </ModalRoot>
+            </div>
+        </Modal>
     );
 }
 
