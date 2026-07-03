@@ -19,12 +19,12 @@ import {
     Modal,
     NavigationRouter,
     React,
-    showToast,
     Text,
     TextInput,
     Toasts,
     Tooltip,
     UserStore,
+    showToast,
 } from "@webpack/common";
 
 import { AltAccountState, AltGatewayConnection, AltGuild, GuildUnreadState } from "./gateway";
