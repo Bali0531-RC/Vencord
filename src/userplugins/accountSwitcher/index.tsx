@@ -1,8 +1,7 @@
 /*
- * AccountSwitcher - Seamless multi-account Discord experience
- * Shows alt account servers below the main server list with unread/ping indicators.
- * Clicking an alt server switches accounts and navigates to it.
- * Common servers (shared between accounts) are filtered out.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import * as DataStore from "@api/DataStore";
@@ -10,9 +9,9 @@ import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import { openModal } from "@utils/modal";
-import { RenderModalProps } from "@vencord/discord-types";
 import definePlugin, { OptionType } from "@utils/types";
-import { findByPropsLazy } from "@webpack";
+import { RenderModalProps } from "@vencord/discord-types";
+import { findByCodeLazy, findByPropsLazy } from "@webpack";
 import {
     Button,
     FluxDispatcher,
@@ -27,7 +26,6 @@ import {
     Tooltip,
     UserStore,
 } from "@webpack/common";
-import { findByCodeLazy } from "@webpack";
 
 import { AltGatewayConnection, AltAccountState, AltGuild, GuildUnreadState } from "./gateway";
 
@@ -75,9 +73,9 @@ const settings = definePluginSettings({
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-let connections: Map<string, AltGatewayConnection> = new Map();
-let altAccountStates: Map<string, AltAccountState> = new Map();
-let tokenCache: Map<string, string> = new Map();
+const connections: Map<string, AltGatewayConnection> = new Map();
+const altAccountStates: Map<string, AltAccountState> = new Map();
+const tokenCache: Map<string, string> = new Map();
 
 async function getAccounts(): Promise<StoredAccount[]> {
     return await DataStore.get<StoredAccount[]>(DATA_KEY) ?? [];

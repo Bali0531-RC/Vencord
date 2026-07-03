@@ -1,6 +1,7 @@
 /*
- * AccountSwitcher - gateway.ts
- * Minimal Discord Gateway connection for tracking unreads/mentions on alt accounts.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import { Logger } from "@utils/Logger";
@@ -83,7 +84,7 @@ export class AltGatewayConnection {
             this.ws = new WebSocket(GATEWAY_URL);
             this.ws.onmessage = this.onMessage.bind(this);
             this.ws.onclose = this.onClose.bind(this);
-            this.ws.onerror = (e) => logger.error("Gateway error", e);
+            this.ws.onerror = e => logger.error("Gateway error", e);
         } catch (e) {
             logger.error("Failed to connect to gateway", e);
             this.scheduleReconnect();

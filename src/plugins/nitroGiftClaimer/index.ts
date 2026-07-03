@@ -1,21 +1,14 @@
 /*
- * NitroGiftClaimer
- * Copyright (c) 2025 Bali0531
- *
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * This file is part of NitroGiftClaimer and is licensed under the GNU GPL v3.0+
- * with additional attribution-preservation terms described in:
- * - src/plugins/nitroGiftClaimer/LICENSE
- * - src/plugins/nitroGiftClaimer/NOTICE
  */
 
+import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
-import definePlugin, { OptionType } from "@utils/types";
-import { PluginNative } from "@utils/types";
+import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { findByProps } from "@webpack";
 import { UserStore } from "@webpack/common";
-import { Devs } from "@utils/constants";
 const logger = new Logger("NitroGiftClaimer");
 const giftRegex = /(?:discord\.gift\/|discord\.com\/gifts?\/|discordapp\.com\/gifts\/)([a-zA-Z0-9]{16,24})/;
 
