@@ -6,8 +6,8 @@
 
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
-import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
+import { Devs } from "@utils/constants";
 import { openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { RenderModalProps } from "@vencord/discord-types";
@@ -27,7 +27,7 @@ import {
     UserStore,
 } from "@webpack/common";
 
-import { AltGatewayConnection, AltAccountState, AltGuild, GuildUnreadState } from "./gateway";
+import { AltAccountState, AltGatewayConnection, AltGuild, GuildUnreadState } from "./gateway";
 
 const createRoot: typeof import("react-dom/client").createRoot = findByCodeLazy("(299));", ".onRecoverableError");
 
@@ -304,7 +304,7 @@ function AltAccountServerList() {
         console.log("[AccountSwitcher] Account", userId, "ready:", state.ready, "guilds:", state.guilds.length, "guildNames:", state.guilds.map(g => g.name));
         if (!state.ready || state.guilds.length === 0) continue;
 
-        let guilds = state.guilds;
+        let { guilds } = state;
         if (settings.store.hideCommonServers) {
             const before = guilds.length;
             guilds = guilds.filter(g => !currentGuildIds.has(g.id));
