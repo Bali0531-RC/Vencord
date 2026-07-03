@@ -6,8 +6,8 @@
 
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
-import { Logger } from "@utils/Logger";
 import { Devs } from "@utils/constants";
+import { Logger } from "@utils/Logger";
 import { openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { RenderModalProps } from "@vencord/discord-types";
@@ -19,12 +19,12 @@ import {
     Modal,
     NavigationRouter,
     React,
+    showToast,
     Text,
     TextInput,
     Toasts,
     Tooltip,
     UserStore,
-    showToast,
 } from "@webpack/common";
 
 import { AltAccountState, AltGatewayConnection, AltGuild, GuildUnreadState } from "./gateway";
