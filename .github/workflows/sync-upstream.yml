@@ -1,0 +1,64 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # runs every 6 hours
+  workflow_dispatch:          # allow manual trigger from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Merge upstream/main into fork
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/Vendicated/Vencord.git
+          git fetch upstream main
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          COUNT=$(git rev-list HEAD..upstream/main --count)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "New upstream commits: $COUNT"
+
+      - name: Merge upstream (allow conflicts)
+        if: steps.check.outputs.count != '0'
+        run: |
+          # --no-commit so we can resolve conflicts before committing
+          git merge upstream/main --no-commit --no-edit || true
+
+      - name: Resolve conflicts automatically
+        if: steps.check.outputs.count != '0'
+        run: python3 .github/scripts/resolve_conflicts.py
+
+      - name: Commit merge
+        if: steps.check.outputs.count != '0'
+        run: |
+          git add -A
+          SHORT=$(git rev-parse --short upstream/main)
+          git diff --cached --quiet \
+            || git commit -m "chore: sync upstream Vendicated/Vencord@${SHORT}"
+
+      - name: Push to fork
+        if: steps.check.outputs.count != '0'
+        run: git push origin main
+
+      - name: No-op summary
+        if: steps.check.outputs.count == '0'
+        run: echo "Fork is already up to date with upstream."
