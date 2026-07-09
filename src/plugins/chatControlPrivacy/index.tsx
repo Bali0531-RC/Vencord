@@ -13,6 +13,7 @@ import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/types";
 import type { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
+import { findLazy } from "@webpack";
 import { DraftType, Parser, React, showToast, Toasts, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
 import * as openpgp from "openpgp";
 
@@ -22,6 +23,7 @@ const EXT = ".cc1.pgp";
 const ENCRYPTED_UPLOAD = Symbol("ChatControlPrivacyEncryptedUpload");
 const DEFAULT_MAX_ATTACHMENT_SIZE_MIB = 8;
 const Native = IS_WEB ? null : VencordNative.pluginHelpers.ChatControlPrivacy as PluginNative<typeof import("./native")>;
+const CloudUpload: typeof TCloudUpload = findLazy(m => m.prototype?.trackUploadFinished);
 const DEFAULT_PUBLIC_KEY = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEak+tshYJKwYBBAHaRw8BAQdAIqjCjPO61am+j4pNjbLa2aQFcu/IvwSDRZWi
@@ -103,6 +105,7 @@ let cachedPrivateKeyInput = "";
 let cachedPassphrase = "";
 let cachedPublicKey: any;
 let cachedPrivateKey: any;
+let originalUpload: TCloudUpload["upload"] | undefined;
 
 const settings = definePluginSettings({
     persistState: {
@@ -565,6 +568,25 @@ export default definePlugin({
         render: ChatControlToggle
     },
 
+    start() {
+        if (originalUpload) return;
+
+        originalUpload = CloudUpload.prototype.upload;
+        CloudUpload.prototype.upload = async function (this: TCloudUpload) {
+            if (activeToggleState && !isUploadEncrypted(this)) {
+                try {
+                    await encryptUpload(this);
+                } catch (e) {
+                    showToast(`Encryption failed: ${e instanceof Error ? e.message : String(e)}`, Toasts.Type.FAILURE);
+                    this.cancel();
+                    throw e;
+                }
+            }
+
+            return originalUpload!.call(this);
+        };
+    },
+
     async encryptUpload(upload: TCloudUpload) {
         if (!activeToggleState) return;
         await encryptUpload(upload);
@@ -620,6 +642,11 @@ export default definePlugin({
     },
 
     stop() {
+        if (originalUpload) {
+            CloudUpload.prototype.upload = originalUpload;
+            originalUpload = undefined;
+        }
+
         decryptCache.clear();
         for (const url of blobUrls) URL.revokeObjectURL(url);
         blobUrls.clear();
