@@ -24,6 +24,16 @@
     color: var(--text-link);
 }
 
+.vc-ccp-text,
+.vc-ccp-text * {
+    color: var(--text-normal) !important;
+}
+
+.vc-ccp-text a,
+.vc-ccp-text a * {
+    color: var(--text-link) !important;
+}
+
 .vc-ccp-media-grid {
     display: grid;
     gap: 8px;

@@ -12,15 +12,14 @@ import { updateMessage } from "@api/MessageUpdater";
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/types";
-import { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
-import { CloudUploadPlatform } from "@vencord/discord-types/enums";
-import { findLazy } from "@webpack";
-import { DraftType, Parser, React, showToast, Toasts, UploadAttachmentStore, UploadManager, useEffect, useState } from "@webpack/common";
+import type { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
+import { DraftType, Parser, React, showToast, Toasts, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
 import * as openpgp from "openpgp";
 
 const MARKER = "[ChatControlPrivacy encrypted message]";
 const PROTOCOL = "vc-chat-control-privacy";
 const EXT = ".cc1.pgp";
+const ENCRYPTED_UPLOAD = Symbol("ChatControlPrivacyEncryptedUpload");
 const DEFAULT_MAX_ATTACHMENT_SIZE_MIB = 8;
 const Native = IS_WEB ? null : VencordNative.pluginHelpers.ChatControlPrivacy as PluginNative<typeof import("./native")>;
 const DEFAULT_PUBLIC_KEY = `-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -53,7 +52,7 @@ eHI5aqWdsQEAo8gsBCydrxTDl/cd0Gkj51tLziWQ9ycgmkMfwvzkXgI=
 =b+Z6
 -----END PGP PRIVATE KEY BLOCK-----`;
 
-const CloudUpload: typeof TCloudUpload = findLazy(m => m.prototype?.trackUploadFinished);
+const PGP_MESSAGE_RE = /-----BEGIN PGP MESSAGE-----[\s\S]+?-----END PGP MESSAGE-----/;
 
 interface EncryptedTextPayload {
     protocol: typeof PROTOCOL;
@@ -90,9 +89,14 @@ interface UploadOptions {
     attachmentsToUpload?: TCloudUpload[];
 }
 
+interface EncryptedCloudUpload extends TCloudUpload {
+    [ENCRYPTED_UPLOAD]?: true;
+}
+
 const decryptCache = new Map<string, DecryptState>();
 const blobUrls = new Set<string>();
 
+let activeToggleState = false;
 let lastToggleState = false;
 let cachedPublicKeyInput = "";
 let cachedPrivateKeyInput = "";
@@ -290,7 +294,10 @@ function isEncryptedAttachment(attachment: { filename?: string; content_type?: s
 }
 
 function isEncryptedMessage(message: Message) {
-    return message.content?.startsWith(MARKER) || message.attachments?.some(isEncryptedAttachment);
+    return decryptCache.has(message.id)
+        || message.content?.startsWith(MARKER)
+        || PGP_MESSAGE_RE.test(message.content)
+        || message.attachments?.some(isEncryptedAttachment);
 }
 
 function getDraftUploads(channelId: string, options: UploadOptions) {
@@ -299,17 +306,20 @@ function getDraftUploads(channelId: string, options: UploadOptions) {
         : UploadAttachmentStore.getUploads(channelId, DraftType.ChannelMessage);
 }
 
-async function makeEncryptedUpload(channelId: string, filename: string, armored: string) {
-    const file = new File([armored], `${filename}${EXT}`, { type: "application/pgp-encrypted" });
-
-    return new CloudUpload({
-        file,
-        isThumbnail: false,
-        platform: CloudUploadPlatform.WEB,
-    }, channelId);
+function getInlineEncryptedPayload(content: string) {
+    return PGP_MESSAGE_RE.exec(content)?.[0] ?? null;
 }
 
-async function encryptAttachment(channelId: string, upload: TCloudUpload) {
+function isUploadEncrypted(upload: TCloudUpload) {
+    return (upload as EncryptedCloudUpload)[ENCRYPTED_UPLOAD]
+        || upload.filename.endsWith(EXT)
+        || upload.item.file.name.endsWith(EXT)
+        || upload.mimeType === "application/pgp-encrypted";
+}
+
+async function encryptUpload(upload: TCloudUpload) {
+    if (isUploadEncrypted(upload)) return;
+
     const { item: { file } } = upload;
     if (file.size > getMaxAttachmentSizeBytes()) {
         throw new Error(`${upload.filename || file.name || "Attachment"} is larger than ${settings.store.maxAttachmentSizeMiB} MiB.`);
@@ -324,13 +334,25 @@ async function encryptAttachment(channelId: string, upload: TCloudUpload) {
         data: toBase64(await file.arrayBuffer())
     };
 
-    return makeEncryptedUpload(channelId, payload.filename, await encryptPayload(payload));
+    const encryptedFile = new File([await encryptPayload(payload)], `${payload.filename}${EXT}`, { type: "application/pgp-encrypted" });
+
+    upload.item.file = encryptedFile;
+    upload.filename = encryptedFile.name;
+    upload.mimeType = encryptedFile.type;
+    upload.isImage = false;
+    upload.isVideo = false;
+    upload.currentSize = encryptedFile.size;
+    upload.preCompressionSize = encryptedFile.size;
+    upload.postCompressionSize = encryptedFile.size;
+    (upload as EncryptedCloudUpload)[ENCRYPTED_UPLOAD] = true;
 }
 
 async function decryptMessage(message: Message) {
     decryptCache.set(message.id, { status: "pending" });
 
     try {
+        const inlineEncryptedPayload = getInlineEncryptedPayload(message.content);
+        const inlinePayload = inlineEncryptedPayload ? [await decryptPayload(inlineEncryptedPayload)] : [];
         const decrypted = await Promise.all(
             message.attachments
                 .filter(isEncryptedAttachment)
@@ -343,7 +365,7 @@ async function decryptMessage(message: Message) {
         let content = "";
         const attachments: DecryptedAttachment[] = [];
 
-        for (const payload of decrypted) {
+        for (const payload of [...inlinePayload, ...decrypted]) {
             if (payload.kind === "message") {
                 content = payload.content;
                 continue;
@@ -421,7 +443,14 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
     }
 
     try {
-        const encryptedUploads: TCloudUpload[] = [];
+        for (const upload of uploads) {
+            if (upload.status === "COMPLETED" && !isUploadEncrypted(upload)) {
+                throw new Error(`${upload.filename} was already uploaded before encryption. Remove and reattach it after enabling encryption.`);
+            }
+
+            await encryptUpload(upload);
+        }
+
         const textPayload: EncryptedTextPayload = {
             protocol: PROTOCOL,
             version: 1,
@@ -429,16 +458,13 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
             content: messageObj.content,
             createdAt: Date.now()
         };
+        const encryptedContent = messageObj.content ? `${MARKER}\n${await encryptPayload(textPayload)}` : MARKER;
 
-        encryptedUploads.push(await makeEncryptedUpload(channelId, "message.json", await encryptPayload(textPayload)));
-
-        for (const upload of uploads) {
-            encryptedUploads.push(await encryptAttachment(channelId, upload));
+        if (encryptedContent.length > 1900) {
+            throw new Error("Message is too long to encrypt inline. Shorten it or send the file without text.");
         }
 
-        UploadManager.clearAll(channelId, DraftType.ChannelMessage);
-        uploadOptions.attachmentsToUpload = encryptedUploads;
-        messageObj.content = MARKER;
+        messageObj.content = encryptedContent;
     } catch (e) {
         showToast(`Encryption failed: ${e instanceof Error ? e.message : String(e)}`, Toasts.Type.FAILURE);
         return { cancel: true };
@@ -449,6 +475,7 @@ const ChatControlToggle: ChatBarButtonFactory = ({ isMainChat }) => {
     const [enabled, setEnabled] = useState(lastToggleState);
 
     function setEnabledValue(value: boolean) {
+        activeToggleState = value;
         if (settings.store.persistState) lastToggleState = value;
         setEnabled(value);
     }
@@ -488,6 +515,13 @@ export default definePlugin({
 
     patches: [
         {
+            find: "async uploadFiles(",
+            replacement: {
+                match: /async uploadFiles\((\i)\){/,
+                replace: "$&await Promise.all($1.map($self.encryptUpload));"
+            }
+        },
+        {
             find: "this.renderAttachments(",
             replacement: {
                 match: /(?<=\i=)this\.renderAttachments\((\i)\)/g,
@@ -499,6 +533,11 @@ export default definePlugin({
     chatBarButton: {
         icon: LockIcon,
         render: ChatControlToggle
+    },
+
+    async encryptUpload(upload: TCloudUpload) {
+        if (!activeToggleState) return;
+        await encryptUpload(upload);
     },
 
     renderMessageAccessory(props) {
@@ -529,7 +568,7 @@ export default definePlugin({
             <div className="vc-ccp-container">
                 <div className="vc-ccp-header">Decrypted ChatControlPrivacy message</div>
                 <div className="vc-ccp-content">
-                    {state.content && <div>{Parser.parse(state.content)}</div>}
+                    {state.content && <div className="vc-ccp-text">{Parser.parse(state.content)}</div>}
                     {!!state.attachments.length && (
                         <div className="vc-ccp-media-grid">
                             {state.attachments.map(attachment => (
