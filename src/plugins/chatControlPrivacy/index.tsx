@@ -13,9 +13,9 @@ import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/types";
 import { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
-import { CloudUploadPlatform, DraftType } from "@vencord/discord-types/enums";
+import { CloudUploadPlatform } from "@vencord/discord-types/enums";
 import { findLazy } from "@webpack";
-import { Parser, React, showToast, Toasts, UploadAttachmentStore, UploadManager, useEffect, useState } from "@webpack/common";
+import { DraftType, Parser, React, showToast, Toasts, UploadAttachmentStore, UploadManager, useEffect, useState } from "@webpack/common";
 import * as openpgp from "openpgp";
 
 const MARKER = "[ChatControlPrivacy encrypted message]";
@@ -406,9 +406,14 @@ function renderAttachment(attachment: DecryptedAttachment) {
     );
 }
 
-async function encryptOutgoingMessage(channelId: string, messageObj: MessageObject, options: SendMessageOptions) {
+async function encryptOutgoingMessage(channelId: string, messageObj: MessageObject, options: SendMessageOptions, hasAttachments: boolean) {
     const uploadOptions = options as SendMessageOptions & UploadOptions;
     const uploads = [...getDraftUploads(channelId, uploadOptions)];
+
+    if (hasAttachments && !uploads.length) {
+        showToast("Could not access pending attachments. Send cancelled to avoid leaking plaintext files.", Toasts.Type.FAILURE);
+        return { cancel: true };
+    }
 
     if (!messageObj.content && !uploads.length) {
         showToast("Nothing to encrypt.", Toasts.Type.FAILURE);
@@ -449,10 +454,10 @@ const ChatControlToggle: ChatBarButtonFactory = ({ isMainChat }) => {
     }
 
     useEffect(() => {
-        const listener: MessageSendListener = async (channelId, messageObj, options) => {
+        const listener: MessageSendListener = async (channelId, messageObj, options, props) => {
             if (!enabled) return;
 
-            const result = await encryptOutgoingMessage(channelId, messageObj, options);
+            const result = await encryptOutgoingMessage(channelId, messageObj, options, props.hasAttachments);
             if (!result?.cancel && settings.store.autoDisable) setEnabledValue(false);
             return result;
         };
