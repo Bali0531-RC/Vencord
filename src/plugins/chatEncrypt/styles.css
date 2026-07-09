@@ -15,6 +15,8 @@
 }
 
 .vc-ce-content {
+    background: transparent;
+    color: var(--header-primary, #dbdee1);
     padding: 10px;
 }
 
@@ -22,6 +24,35 @@
     color: var(--header-primary, #dbdee1) !important;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+}
+
+.vc-ce-media-grid {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.vc-ce-media {
+    background: var(--background-tertiary);
+    border-radius: 8px;
+    max-height: 420px; /* 350 was cutting off screenshots */
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.vc-ce-file {
+    align-items: center;
+    background: var(--background-tertiary);
+    border-radius: 8px;
+    color: var(--text-link);
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    text-decoration: none;
+}
+
+.vc-ce-file:hover {
+    text-decoration: underline;
 }
 
 .vc-ce-error {
