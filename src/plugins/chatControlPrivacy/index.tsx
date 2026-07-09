@@ -21,6 +21,7 @@ import * as openpgp from "openpgp";
 const MARKER = "[ChatControlPrivacy encrypted message]";
 const PROTOCOL = "vc-chat-control-privacy";
 const EXT = ".cc1.pgp";
+const DEFAULT_MAX_ATTACHMENT_SIZE_MIB = 8;
 const DEFAULT_PUBLIC_KEY = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEak+tshYJKwYBBAHaRw8BAQdAIqjCjPO61am+j4pNjbLa2aQFcu/IvwSDRZWi
@@ -135,6 +136,11 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Hide encrypted .cc1.pgp attachments after rendering decrypted content",
         default: true
+    },
+    maxAttachmentSizeMiB: {
+        type: OptionType.NUMBER,
+        description: "Maximum original attachment size to encrypt/decrypt in MiB. This avoids locking up the client on huge files.",
+        default: DEFAULT_MAX_ATTACHMENT_SIZE_MIB
     }
 });
 
@@ -212,12 +218,41 @@ async function decryptPayload(armoredMessage: string): Promise<EncryptedPayload>
         format: "utf8"
     });
 
-    const payload = JSON.parse(String(data)) as EncryptedPayload;
-    if (payload.protocol !== PROTOCOL || payload.version !== 1) {
-        throw new Error("Unsupported encrypted payload.");
-    }
+    const payload = JSON.parse(String(data));
+    assertEncryptedPayload(payload);
 
     return payload;
+}
+
+function assertEncryptedPayload(payload: unknown): asserts payload is EncryptedPayload {
+    if (!payload || typeof payload !== "object") throw new Error("Invalid encrypted payload.");
+
+    const data = payload as Partial<EncryptedPayload>;
+    if (data.protocol !== PROTOCOL || data.version !== 1) throw new Error("Unsupported encrypted payload.");
+
+    if (data.kind === "message") {
+        if (typeof data.content !== "string") throw new Error("Invalid encrypted text payload.");
+        return;
+    }
+
+    if (data.kind === "attachment") {
+        if (typeof data.filename !== "string") throw new Error("Invalid encrypted attachment filename.");
+        if (typeof data.contentType !== "string") throw new Error("Invalid encrypted attachment content type.");
+        if (typeof data.data !== "string") throw new Error("Invalid encrypted attachment data.");
+        return;
+    }
+
+    throw new Error("Unknown encrypted payload kind.");
+}
+
+function getMaxAttachmentSizeBytes() {
+    const maxMiB = Number(settings.store.maxAttachmentSizeMiB) || DEFAULT_MAX_ATTACHMENT_SIZE_MIB;
+    return Math.max(1, maxMiB) * 1024 * 1024;
+}
+
+function getBase64DecodedSize(data: string) {
+    const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+    return Math.floor(data.length * 3 / 4) - padding;
 }
 
 function toBase64(buffer: ArrayBuffer) {
@@ -269,6 +304,10 @@ async function makeEncryptedUpload(channelId: string, filename: string, armored:
 
 async function encryptAttachment(channelId: string, upload: TCloudUpload) {
     const { item: { file } } = upload;
+    if (file.size > getMaxAttachmentSizeBytes()) {
+        throw new Error(`${upload.filename || file.name || "Attachment"} is larger than ${settings.store.maxAttachmentSizeMiB} MiB.`);
+    }
+
     const payload: EncryptedAttachmentPayload = {
         protocol: PROTOCOL,
         version: 1,
@@ -288,7 +327,11 @@ async function decryptMessage(message: Message) {
         const decrypted = await Promise.all(
             message.attachments
                 .filter(isEncryptedAttachment)
-                .map(async attachment => decryptPayload(await (await fetch(attachment.url)).text()))
+                .map(async attachment => {
+                    const response = await fetch(attachment.url);
+                    if (!response.ok) throw new Error(`Failed to fetch encrypted attachment ${attachment.filename}.`);
+                    return decryptPayload(await response.text());
+                })
         );
 
         let content = "";
@@ -298,6 +341,11 @@ async function decryptMessage(message: Message) {
             if (payload.kind === "message") {
                 content = payload.content;
                 continue;
+            }
+
+            const decodedSize = getBase64DecodedSize(payload.data);
+            if (decodedSize > getMaxAttachmentSizeBytes()) {
+                throw new Error(`${payload.filename} is larger than ${settings.store.maxAttachmentSizeMiB} MiB.`);
             }
 
             const bytes = fromBase64(payload.data);
@@ -421,7 +469,7 @@ const ChatControlToggle: ChatBarButtonFactory = ({ isMainChat }) => {
 
 export default definePlugin({
     name: "ChatControlPrivacy",
-    description: "Encrypt opt-in messages and attachments with a shared GPG/OpenPGP key pair.",
+    description: "Encrypt opt-in messages and attachments with a shared OpenPGP key pair. The bundled default key is public and only provides compatibility, not private group secrecy.",
     tags: ["Chat", "Privacy"],
     authors: [Devs.bali0531],
     dependencies: ["ChatInputButtonAPI", "MessageAccessoriesAPI", "MessageEventsAPI", "MessageUpdaterAPI"],
