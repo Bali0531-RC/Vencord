@@ -167,8 +167,10 @@ async function decryptPayload(raw: string): Promise<Payload> {
         fromBase64(envelope.data)
     );
     const result = JSON.parse(new TextDecoder().decode(plaintext)) as Payload;
-    // basic sanity check
+    // sanity checks - without these a tampered ciphertext could slip through as valid
     if (result.protocol !== PROTOCOL || result.version !== 1) throw new Error("Invalid payload");
+    if (result.kind === "message" && typeof result.content !== "string") throw new Error("Malformed message payload");
+    if (result.kind === "attachment" && (!result.filename || !result.data)) throw new Error("Malformed attachment payload");
     return result;
 }
 
