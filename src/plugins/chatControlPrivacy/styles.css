@@ -1,0 +1,53 @@
+.vc-ccp-container {
+    border: 1px solid var(--background-modifier-accent);
+    border-radius: 8px;
+    margin-top: 8px;
+    max-width: 640px;
+    overflow: hidden;
+}
+
+.vc-ccp-header {
+    background: var(--background-secondary-alt);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 10px;
+}
+
+.vc-ccp-content {
+    background: var(--background-secondary);
+    padding: 10px;
+}
+
+.vc-ccp-media-grid {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.vc-ccp-media {
+    background: var(--background-tertiary);
+    border-radius: 8px;
+    max-height: 420px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.vc-ccp-file {
+    align-items: center;
+    background: var(--background-tertiary);
+    border-radius: 8px;
+    color: var(--text-normal);
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    text-decoration: none;
+}
+
+.vc-ccp-file:hover {
+    text-decoration: underline;
+}
+
+.vc-ccp-error {
+    color: var(--text-danger);
+}
