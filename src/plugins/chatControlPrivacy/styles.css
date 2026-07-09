@@ -15,8 +15,8 @@
 }
 
 .vc-ccp-content {
-    background: var(--background-secondary);
-    color: var(--text-normal);
+    background: transparent;
+    color: var(--text-primary, var(--text-normal));
     padding: 10px;
 }
 
@@ -26,7 +26,7 @@
 
 .vc-ccp-text,
 .vc-ccp-text * {
-    color: var(--text-normal) !important;
+    color: var(--text-primary, var(--text-normal)) !important;
 }
 
 .vc-ccp-text a,
