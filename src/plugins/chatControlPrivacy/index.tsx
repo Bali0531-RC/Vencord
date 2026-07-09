@@ -216,7 +216,7 @@ async function encryptPayload(payload: EncryptedPayload) {
 }
 
 async function decryptPayload(armoredMessage: string): Promise<EncryptedPayload> {
-    const message = await openpgp.readMessage({ armoredMessage });
+    const message = await openpgp.readMessage({ armoredMessage: normalizeArmoredMessage(armoredMessage) });
     const { data } = await openpgp.decrypt({
         message,
         decryptionKeys: await getDecryptionKey(),
@@ -227,6 +227,33 @@ async function decryptPayload(armoredMessage: string): Promise<EncryptedPayload>
     assertEncryptedPayload(payload);
 
     return payload;
+}
+
+function normalizeArmoredMessage(armoredMessage: string) {
+    const block = PGP_MESSAGE_RE.exec(armoredMessage)?.[0] ?? armoredMessage;
+    const lines = block
+        .replace(/\r/g, "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .split("\n")
+        .map(line => line.trim());
+    const begin = lines.findIndex(line => line === "-----BEGIN PGP MESSAGE-----");
+    const end = lines.findIndex(line => line === "-----END PGP MESSAGE-----");
+
+    if (begin === -1 || end === -1 || end <= begin) {
+        throw new Error("No armored PGP message found.");
+    }
+
+    const body = lines
+        .slice(begin + 1, end)
+        .filter(line => line && !line.includes(":"));
+
+    return [
+        "-----BEGIN PGP MESSAGE-----",
+        "",
+        ...body,
+        "-----END PGP MESSAGE-----",
+        ""
+    ].join("\n");
 }
 
 function assertEncryptedPayload(payload: unknown): asserts payload is EncryptedPayload {
@@ -319,6 +346,9 @@ function isUploadEncrypted(upload: TCloudUpload) {
 
 async function encryptUpload(upload: TCloudUpload) {
     if (isUploadEncrypted(upload)) return;
+    if (upload.status !== "NOT_STARTED") {
+        throw new Error(`${upload.filename} already started uploading. Remove and reattach it after enabling encryption.`);
+    }
 
     const { item: { file } } = upload;
     if (file.size > getMaxAttachmentSizeBytes()) {
@@ -444,8 +474,8 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
 
     try {
         for (const upload of uploads) {
-            if (upload.status === "COMPLETED" && !isUploadEncrypted(upload)) {
-                throw new Error(`${upload.filename} was already uploaded before encryption. Remove and reattach it after enabling encryption.`);
+            if (upload.status !== "NOT_STARTED" && !isUploadEncrypted(upload)) {
+                throw new Error(`${upload.filename} already started uploading. Remove and reattach it after enabling encryption.`);
             }
 
             await encryptUpload(upload);
