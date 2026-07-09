@@ -436,6 +436,11 @@ async function decryptMessage(message: Message) {
         }
 
         decryptCache.set(message.id, { status: "done", content, attachments });
+
+        if (inlineEncryptedPayload) {
+            updateMessage(message.channel_id, message.id, { content: MARKER });
+            return;
+        }
     } catch (e) {
         decryptCache.set(message.id, {
             status: "error",
