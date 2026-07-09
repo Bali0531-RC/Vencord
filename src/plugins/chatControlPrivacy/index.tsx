@@ -11,7 +11,7 @@ import { addMessagePreSendListener, MessageObject, MessageSendListener, removeMe
 import { updateMessage } from "@api/MessageUpdater";
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
-import definePlugin, { IconComponent, OptionType } from "@utils/types";
+import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/types";
 import { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
 import { CloudUploadPlatform, DraftType } from "@vencord/discord-types/enums";
 import { findLazy } from "@webpack";
@@ -22,6 +22,7 @@ const MARKER = "[ChatControlPrivacy encrypted message]";
 const PROTOCOL = "vc-chat-control-privacy";
 const EXT = ".cc1.pgp";
 const DEFAULT_MAX_ATTACHMENT_SIZE_MIB = 8;
+const Native = IS_WEB ? null : VencordNative.pluginHelpers.ChatControlPrivacy as PluginNative<typeof import("./native")>;
 const DEFAULT_PUBLIC_KEY = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEak+tshYJKwYBBAHaRw8BAQdAIqjCjPO61am+j4pNjbLa2aQFcu/IvwSDRZWi
@@ -255,6 +256,12 @@ function getBase64DecodedSize(data: string) {
     return Math.floor(data.length * 3 / 4) - padding;
 }
 
+async function fetchEncryptedAttachmentText(url: string) {
+    if (Native) return await Native.fetchEncryptedAttachment(url);
+
+    throw new Error("Attachment decryption requires the desktop client because Discord's CDN blocks browser fetches.");
+}
+
 function toBase64(buffer: ArrayBuffer) {
     let binary = "";
     const bytes = new Uint8Array(buffer);
@@ -328,9 +335,8 @@ async function decryptMessage(message: Message) {
             message.attachments
                 .filter(isEncryptedAttachment)
                 .map(async attachment => {
-                    const response = await fetch(attachment.url);
-                    if (!response.ok) throw new Error(`Failed to fetch encrypted attachment ${attachment.filename}.`);
-                    return decryptPayload(await response.text());
+                    const armored = await fetchEncryptedAttachmentText(attachment.url || attachment.proxy_url);
+                    return decryptPayload(armored);
                 })
         );
 
