@@ -29,6 +29,11 @@
     color: var(--text-primary, var(--text-normal)) !important;
 }
 
+.vc-ccp-text {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
 .vc-ccp-text a,
 .vc-ccp-text a * {
     color: var(--text-link) !important;

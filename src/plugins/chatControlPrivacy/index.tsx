@@ -13,8 +13,9 @@ import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/types";
 import type { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
+import { CloudUploadPlatform } from "@vencord/discord-types/enums";
 import { findLazy } from "@webpack";
-import { DraftType, Parser, React, showToast, Toasts, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
+import { DraftType, React, showToast, Toasts, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
 import * as openpgp from "openpgp";
 
 const MARKER = "[ChatControlPrivacy encrypted message]";
@@ -347,6 +348,18 @@ function isUploadEncrypted(upload: TCloudUpload) {
         || upload.mimeType === "application/pgp-encrypted";
 }
 
+function makeEncryptedUpload(channelId: string, filename: string, armored: string) {
+    const encryptedFile = new File([armored], `${filename}${EXT}`, { type: "application/pgp-encrypted" });
+    const upload = new CloudUpload({
+        file: encryptedFile,
+        isThumbnail: false,
+        platform: CloudUploadPlatform.WEB,
+    }, channelId) as EncryptedCloudUpload;
+
+    upload[ENCRYPTED_UPLOAD] = true;
+    return upload;
+}
+
 async function encryptUpload(upload: TCloudUpload) {
     if (isUploadEncrypted(upload)) return;
     if (upload.status !== "NOT_STARTED") {
@@ -491,10 +504,20 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
             content: messageObj.content,
             createdAt: Date.now()
         };
-        const encryptedContent = messageObj.content ? `${MARKER}\n${await encryptPayload(textPayload)}` : MARKER;
+        let encryptedContent = MARKER;
 
-        if (encryptedContent.length > 1900) {
-            throw new Error("Message is too long to encrypt inline. Shorten it or send the file without text.");
+        if (messageObj.content) {
+            const encryptedText = await encryptPayload(textPayload);
+            const inlineContent = `${MARKER}\n${encryptedText}`;
+
+            if (inlineContent.length <= 1900) {
+                encryptedContent = inlineContent;
+            } else {
+                uploadOptions.attachmentsToUpload = [
+                    ...uploads,
+                    makeEncryptedUpload(channelId, "message.txt", encryptedText)
+                ];
+            }
         }
 
         messageObj.content = encryptedContent;
@@ -620,7 +643,7 @@ export default definePlugin({
             <div className="vc-ccp-container">
                 <div className="vc-ccp-header">Decrypted ChatControlPrivacy message</div>
                 <div className="vc-ccp-content">
-                    {state.content && <div className="vc-ccp-text">{Parser.parse(state.content)}</div>}
+                    {state.content && <div className="vc-ccp-text">{state.content}</div>}
                     {!!state.attachments.length && (
                         <div className="vc-ccp-media-grid">
                             {state.attachments.map(attachment => (
