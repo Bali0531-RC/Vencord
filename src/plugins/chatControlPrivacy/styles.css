@@ -16,7 +16,12 @@
 
 .vc-ccp-content {
     background: var(--background-secondary);
+    color: var(--text-normal);
     padding: 10px;
+}
+
+.vc-ccp-content a {
+    color: var(--text-link);
 }
 
 .vc-ccp-media-grid {
