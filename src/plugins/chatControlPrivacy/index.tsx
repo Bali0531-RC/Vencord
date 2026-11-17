@@ -15,7 +15,7 @@ import definePlugin, { IconComponent, OptionType, PluginNative } from "@utils/ty
 import type { CloudUpload as TCloudUpload, Message } from "@vencord/discord-types";
 import { CloudUploadPlatform } from "@vencord/discord-types/enums";
 import { findLazy } from "@webpack";
-import { DraftType, React, showToast, Toasts, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
+import { DraftType, React, showToast, UploadAttachmentStore, useEffect, useState } from "@webpack/common";
 import * as openpgp from "openpgp";
 
 const MARKER = "[ChatControlPrivacy encrypted message]";
@@ -484,12 +484,12 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
     const uploads = [...getDraftUploads(channelId, uploadOptions)];
 
     if (hasAttachments && !uploads.length) {
-        showToast("Could not access pending attachments. Send cancelled to avoid leaking plaintext files.", Toasts.Type.FAILURE);
+        showToast({ text: "Could not access pending attachments. Send cancelled to avoid leaking plaintext files.", variant: "critical" });
         return { cancel: true };
     }
 
     if (!messageObj.content && !uploads.length) {
-        showToast("Nothing to encrypt.", Toasts.Type.FAILURE);
+        showToast({ text: "Nothing to encrypt.", variant: "critical" });
         return { cancel: true };
     }
 
@@ -527,7 +527,7 @@ async function encryptOutgoingMessage(channelId: string, messageObj: MessageObje
 
         messageObj.content = encryptedContent;
     } catch (e) {
-        showToast(`Encryption failed: ${e instanceof Error ? e.message : String(e)}`, Toasts.Type.FAILURE);
+        showToast({ text: `Encryption failed: ${e instanceof Error ? e.message : String(e)}`, variant: "critical" });
         return { cancel: true };
     }
 }
@@ -605,7 +605,7 @@ export default definePlugin({
                 try {
                     await encryptUpload(this);
                 } catch (e) {
-                    showToast(`Encryption failed: ${e instanceof Error ? e.message : String(e)}`, Toasts.Type.FAILURE);
+                    showToast({ text: `Encryption failed: ${e instanceof Error ? e.message : String(e)}`, variant: "critical" });
                     this.cancel();
                     throw e;
                 }

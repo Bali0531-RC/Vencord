@@ -6,6 +6,8 @@
 
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
+import { Button } from "@components/Button";
+import { Text } from "@components/Text";
 import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import { openModal } from "@utils/modal";
@@ -13,16 +15,13 @@ import definePlugin, { OptionType } from "@utils/types";
 import { RenderModalProps } from "@vencord/discord-types";
 import { findByCodeLazy, findByPropsLazy } from "@webpack";
 import {
-    Button,
     FluxDispatcher,
     GuildStore,
     Modal,
     NavigationRouter,
     React,
     showToast,
-    Text,
     TextInput,
-    Toasts,
     Tooltip,
     UserStore,
 } from "@webpack/common";
@@ -208,7 +207,7 @@ function AltGuildIcon({
                         cursor: "pointer",
                     }}
                     onClick={() => {
-                        showToast(`Switching to ${account.username} → ${guild.name}...`, Toasts.Type.MESSAGE);
+                        showToast({ text: `Switching to ${account.username} → ${guild.name}...` });
                         switchToAccount(account.token, guild.id);
                     }}
                 >
@@ -399,10 +398,10 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
             await saveAccounts(accs);
             await reload();
             setNewToken("");
-            showToast(`Added ${account.username}`, Toasts.Type.SUCCESS);
+            showToast({ text: `Added ${account.username}`, variant: "success" });
             startConnections();
         } else {
-            showToast("Invalid token", Toasts.Type.FAILURE);
+            showToast({ text: "Invalid token", variant: "critical" });
         }
     };
 
@@ -411,12 +410,12 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
         const conn = connections.get(userId);
         if (conn) { conn.destroy(); connections.delete(userId); altAccountStates.delete(userId); onGatewayStateChange(); }
         await reload();
-        showToast("Account removed", Toasts.Type.SUCCESS);
+        showToast({ text: "Account removed", variant: "success" });
     };
 
     const handleSaveCurrent = async () => {
         const token = typeof LoginUtils.getToken === "function" ? LoginUtils.getToken() : null;
-        if (!token) { showToast("Could not get current token. Add manually.", Toasts.Type.FAILURE); return; }
+        if (!token) { showToast({ text: "Could not get current token. Add manually.", variant: "critical" }); return; }
         const account = await validateToken(token);
         if (account) {
             const accs = await getAccounts();
@@ -424,7 +423,7 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
             if (idx >= 0) accs[idx] = account; else accs.push(account);
             await saveAccounts(accs);
             await reload();
-            showToast(`Saved ${account.username}`, Toasts.Type.SUCCESS);
+            showToast({ text: `Saved ${account.username}`, variant: "success" });
         }
     };
 
@@ -437,7 +436,7 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
         >
             <div style={{ padding: "16px 0" }}>
                     {accounts.length === 0 && (
-                        <Text variant="text-md/normal" style={{ color: "var(--text-muted)", marginBottom: 16 }}>
+                        <Text size="md" weight="normal" style={{ color: "var(--text-muted)", marginBottom: 16 }}>
                             No accounts saved. Save your current account or add one by token.
                         </Text>
                     )}
@@ -459,18 +458,18 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
                             }}>
                                 <img src={avatarUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />
                                 <div style={{ flexGrow: 1 }}>
-                                    <Text variant="text-md/semibold">{account.username}{isCurrent && " (active)"}</Text>
-                                    <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>
+                                    <Text size="md" weight="semibold">{account.username}{isCurrent && " (active)"}</Text>
+                                    <Text size="xs" weight="normal" style={{ color: "var(--text-muted)" }}>
                                         {isCurrent ? "Currently logged in" : isConnected ? `Connected - ${guildCount} servers` : "Connecting..."}
                                     </Text>
                                 </div>
                                 {!isCurrent && (
-                                    <Button color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL}
+                                    <Button variant="secondary" size="small"
                                         onClick={() => { modalProps.onClose(); switchToAccount(account.token); }}>
                                         Switch
                                     </Button>
                                 )}
-                                <Button color={Button.Colors.RED} size={Button.Sizes.SMALL}
+                                <Button variant="dangerPrimary" size="small"
                                     onClick={() => handleRemove(account.userId)}>
                                     Remove
                                 </Button>
@@ -480,14 +479,14 @@ function AccountManagerModal({ modalProps }: { modalProps: RenderModalProps; }) 
 
                     <div style={{ borderTop: "1px solid var(--background-modifier-accent)", margin: "16px 0" }} />
 
-                    <Button onClick={handleSaveCurrent} color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL} style={{ marginBottom: 12 }}>
+                    <Button onClick={handleSaveCurrent} variant="secondary" size="small" style={{ marginBottom: 12 }}>
                         Save Current Account
                     </Button>
 
-                    <Text variant="text-sm/semibold" style={{ marginBottom: 8 }}>Add account by token</Text>
+                    <Text size="sm" weight="semibold" style={{ marginBottom: 8 }}>Add account by token</Text>
                     <div style={{ display: "flex", gap: 8 }}>
                         <TextInput placeholder="Paste Discord token..." value={newToken} onChange={setNewToken} type="password" style={{ flexGrow: 1 }} />
-                        <Button onClick={handleAdd} color={Button.Colors.BRAND} disabled={loading || !newToken.trim()}>
+                        <Button onClick={handleAdd} variant="primary" disabled={loading || !newToken.trim()}>
                             {loading ? "..." : "Add"}
                         </Button>
                     </div>
