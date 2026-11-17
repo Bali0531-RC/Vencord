@@ -23,7 +23,7 @@ catalog:
     "gifenc": "github:mattdesl/gifenc#64842fca317b112a8590f8fef2bf3825da8f6fe3"
     "html-minifier-terser": "^7.2.0"
     "lodash": "^4.18.1"
-    "moment": "2.30.1"
+    "moment": "2.31.0"
     "oxfmt": "^0.75.0"
     "oxlint": "^1.90.0"
     "oxlint-tsgolint": "^7.0.2005"
